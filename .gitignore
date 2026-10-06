@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.env
+.env.local
+.env.*.local
+!functions/.env
+functions/node_modules/
+functions/.env.local
+functions/.secret.local
+emulator-data/
+firebase-debug.log
+firestore-debug.log
+storage-debug.log
+ui-debug.log
+*.log
+serviceAccount*.json
+.firebase/

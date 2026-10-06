@@ -1,0 +1,204 @@
+rules_version = '2';
+
+// EcoSort Firestore Security Rules
+// - Role is stored in users/{uid}.role and can never be changed by the user.
+// - Status changes for pickups / listings / complaints and all EcoPoints are
+//   handled by Cloud Functions (Admin SDK bypasses these rules).
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- Helper functions ----------
+    function signedIn() { return request.auth != null; }
+    function uid() { return request.auth.uid; }
+    function me() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data; }
+    function hasProfile() { return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)); }
+    function isActive() { return hasProfile() && me().active == true; }
+    function hasRole(r) { return isActive() && me().role == r; }
+    function isAdmin() { return hasRole('admin'); }
+    function isCollector() { return hasRole('collector'); }
+    function isUser() { return hasRole('user'); }
+
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function changedOnly(fields) { return incoming().diff(existing()).affectedKeys().hasOnly(fields); }
+    function str(v, min, max) { return v is string && v.size() >= min && v.size() <= max; }
+    function optStr(v, max) { return v == null || (v is string && v.size() <= max); }
+    function validCategory(c) { return c in ['recyclable', 'non_recyclable', 'organic', 'ewaste', 'hazardous']; }
+    function validUnit(u) { return u in ['kg', 'g', 'item', 'bag']; }
+    function positive(n) { return (n is int || n is float) && n > 0 && n <= 100000; }
+
+    // ---------- users ----------
+    match /users/{userId} {
+      allow read: if (signedIn() && uid() == userId) || isAdmin();
+      // Self-registration always creates a normal USER with 0 points.
+      allow create: if signedIn() && uid() == userId
+        && incoming().keys().hasOnly(['uid', 'name', 'email', 'phone', 'address', 'area', 'role', 'ecoPoints', 'active', 'createdAt'])
+        && incoming().uid == userId
+        && incoming().role == 'user'
+        && incoming().ecoPoints == 0
+        && incoming().active == true
+        && incoming().email == request.auth.token.email
+        && str(incoming().name, 2, 100)
+        && str(incoming().phone, 7, 20)
+        && str(incoming().address, 5, 300)
+        && optStr(incoming().area, 100)
+        && incoming().createdAt == request.time;
+      // Users may edit only basic profile fields (never role / ecoPoints / active).
+      allow update: if signedIn() && uid() == userId && isActive()
+        && changedOnly(['name', 'phone', 'address', 'area', 'updatedAt'])
+        && str(incoming().name, 2, 100)
+        && str(incoming().phone, 7, 20)
+        && optStr(incoming().address, 300)
+        && optStr(incoming().area, 100);
+      allow delete: if false;
+    }
+
+    // ---------- collectors (profile + service area) ----------
+    match /collectors/{collectorId} {
+      allow read: if isAdmin() || (signedIn() && uid() == collectorId);
+      allow update: if isAdmin()
+        || (isCollector() && uid() == collectorId && changedOnly(['available']) && incoming().available is bool);
+      allow create, delete: if false;
+    }
+
+    // ---------- wasteItems (classification history) ----------
+    match /wasteItems/{wasteId} {
+      allow read: if (signedIn() && existing().userId == uid()) || isAdmin();
+      allow create: if isActive()
+        && incoming().userId == uid()
+        && incoming().keys().hasOnly(['wasteId', 'userId', 'imageUrl', 'imagePath', 'itemName', 'category', 'confidence',
+             'description', 'recommendedAction', 'quantity', 'unit', 'recyclable', 'estimatedValueMin',
+             'estimatedValueMax', 'source', 'createdAt'])
+        && validCategory(incoming().category)
+        && incoming().source in ['ai', 'manual']
+        && str(incoming().itemName, 1, 100)
+        && positive(incoming().quantity)
+        && validUnit(incoming().unit)
+        && incoming().createdAt == request.time;
+      allow update: if isActive() && existing().userId == uid()
+        && changedOnly(['quantity', 'unit', 'itemName', 'category'])
+        && validCategory(incoming().category)
+        && positive(incoming().quantity)
+        && validUnit(incoming().unit)
+        && str(incoming().itemName, 1, 100);
+      allow delete: if (isActive() && existing().userId == uid()) || isAdmin();
+    }
+
+    // ---------- wasteListings (marketplace) ----------
+    function validListingFields() {
+      return str(incoming().itemName, 2, 100)
+        && incoming().category in ['recyclable', 'ewaste']
+        && optStr(incoming().description, 1000)
+        && positive(incoming().quantity)
+        && validUnit(incoming().unit)
+        && incoming().condition in ['new', 'good', 'fair', 'poor', 'scrap']
+        && (incoming().expectedPrice is int || incoming().expectedPrice is float)
+        && incoming().expectedPrice >= 0
+        && incoming().pickupAvailable is bool
+        && optStr(incoming().sellerArea, 100);
+    }
+
+    match /wasteListings/{listingId} {
+      allow read: if isActive();
+      allow create: if isUser()
+        && incoming().sellerId == uid()
+        && incoming().keys().hasOnly(['listingId', 'sellerId', 'sellerName', 'sellerArea', 'wasteId', 'itemName',
+             'category', 'description', 'quantity', 'unit', 'condition', 'expectedPrice', 'imageUrl', 'imagePath',
+             'pickupAvailable', 'status', 'createdAt', 'updatedAt'])
+        && incoming().status == 'AVAILABLE'
+        && validListingFields()
+        && incoming().createdAt == request.time;
+      // Seller may edit details only while AVAILABLE; status changes go through Cloud Functions.
+      allow update: if isUser() && existing().sellerId == uid()
+        && existing().status == 'AVAILABLE'
+        && changedOnly(['itemName', 'category', 'description', 'quantity', 'unit', 'condition', 'expectedPrice',
+             'imageUrl', 'imagePath', 'pickupAvailable', 'sellerArea', 'updatedAt'])
+        && validListingFields();
+      // Delete before acceptance (or after cancellation); admins can remove any listing.
+      allow delete: if (isActive() && existing().sellerId == uid()
+          && existing().status in ['AVAILABLE', 'OFFER_RECEIVED', 'CANCELLED'])
+        || isAdmin();
+
+      // Contact details shared only between seller, buyer and admin once an offer is accepted.
+      match /private/{docId} {
+        allow read: if isAdmin() || (isActive() && (existing().sellerId == uid() || existing().buyerId == uid()));
+        allow write: if false;
+      }
+    }
+
+    // ---------- pickupRequests ----------
+    match /pickupRequests/{pickupId} {
+      allow read: if signedIn() && (existing().userId == uid() || existing().collectorId == uid() || isAdmin());
+      allow create: if isUser()
+        && incoming().userId == uid()
+        && incoming().keys().hasOnly(['pickupId', 'userId', 'userName', 'userPhone', 'wasteId', 'collectorId',
+             'collectorName', 'category', 'itemName', 'quantity', 'unit', 'address', 'landmark', 'preferredDate',
+             'preferredTime', 'notes', 'imageUrl', 'imagePath', 'status', 'createdAt', 'updatedAt'])
+        && incoming().status == 'REQUESTED'
+        && incoming().collectorId == null
+        && validCategory(incoming().category)
+        && str(incoming().itemName, 2, 100)
+        && positive(incoming().quantity)
+        && validUnit(incoming().unit)
+        && str(incoming().address, 5, 300)
+        && optStr(incoming().landmark, 150)
+        && incoming().preferredDate is string && incoming().preferredDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && incoming().preferredTime in ['morning', 'afternoon', 'evening']
+        && optStr(incoming().notes, 500)
+        && incoming().createdAt == request.time;
+      // All status changes go through Cloud Functions (assignCollector / updatePickupStatus).
+      allow update, delete: if false;
+    }
+
+    // ---------- complaints ----------
+    match /complaints/{complaintId} {
+      allow read: if (signedIn() && existing().userId == uid()) || isAdmin();
+      allow create: if isActive()
+        && incoming().userId == uid()
+        && incoming().keys().hasOnly(['complaintId', 'userId', 'userName', 'type', 'typeLabel', 'description',
+             'imageUrl', 'imagePath', 'address', 'status', 'createdAt', 'updatedAt'])
+        && incoming().type in ['illegal_dumping', 'overflowing_garbage', 'waste_burning', 'uncollected_waste', 'other']
+        && incoming().status == 'SUBMITTED'
+        && str(incoming().description, 10, 1000)
+        && str(incoming().address, 5, 300)
+        && incoming().createdAt == request.time;
+      allow update: if false; // updateComplaintStatus Cloud Function
+      allow delete: if isAdmin();
+    }
+
+    // ---------- partners ----------
+    match /partners/{partnerId} {
+      allow read: if isAdmin() || (isActive() && existing().active == true);
+      allow create, update: if isAdmin()
+        && str(incoming().name, 2, 120)
+        && incoming().active is bool
+        && incoming().categories is list;
+      allow delete: if isAdmin();
+    }
+
+    // ---------- rewardTransactions (written only by Cloud Functions) ----------
+    match /rewardTransactions/{rewardId} {
+      allow read: if (signedIn() && existing().userId == uid()) || isAdmin();
+      allow write: if false;
+    }
+
+    // ---------- notifications (written only by Cloud Functions) ----------
+    match /notifications/{notificationId} {
+      allow read: if signedIn() && existing().userId == uid();
+      allow update: if signedIn() && existing().userId == uid() && changedOnly(['read']) && incoming().read is bool;
+      allow delete: if signedIn() && existing().userId == uid();
+      allow create: if false;
+    }
+
+    // ---------- categories & settings (admin-configurable) ----------
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if isAdmin() && validCategory(categoryId);
+    }
+
+    match /settings/{settingId} {
+      allow read: if signedIn();
+      allow write: if isAdmin() && settingId in ['rewards', 'rates', 'impact'];
+    }
+  }
+}

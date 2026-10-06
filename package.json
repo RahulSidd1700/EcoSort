@@ -1,0 +1,40 @@
+{
+  "name": "ecosort",
+  "private": true,
+  "version": "1.0.0",
+  "description": "EcoSort - AI-Enabled Smart Waste Segregation, Recycling and Collection Management System",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint .",
+    "emulators": "firebase emulators:start",
+    "seed:emulator": "node scripts/seed.js --config --demo --emulator",
+    "seed:clear-demo": "node scripts/seed.js --clear-demo --emulator",
+    "seed:config": "node scripts/seed.js --config",
+    "set-role": "node scripts/setRole.js",
+    "test:functions": "npm --prefix functions test",
+    "test:e2e": "node scripts/e2e-emulator-test.js"
+  },
+  "dependencies": {
+    "firebase": "^12.19.0",
+    "lucide-react": "^1.52.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-router-dom": "^7.18.4",
+    "recharts": "^3.10.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@tailwindcss/vite": "^4.3.3",
+    "@vitejs/plugin-react": "^6.1.2",
+    "eslint": "^10.12.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.7",
+    "firebase-admin": "^14.5.0",
+    "globals": "^17.13.0",
+    "tailwindcss": "^4.3.3",
+    "vite": "^8.3.3"
+  }
+}
