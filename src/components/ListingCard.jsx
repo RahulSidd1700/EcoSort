@@ -8,13 +8,9 @@ export default function ListingCard({ listing, children }) {
   return (
     <article className="flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
       <Link to={`/marketplace/${listing.id}`} className="block">
-        {listing.imageUrl ? (
-          <img src={listing.imageUrl} alt={listing.itemName} className="h-44 w-full object-cover" loading="lazy" />
-        ) : (
-          <div className="flex h-44 items-center justify-center bg-slate-100 text-5xl" aria-hidden="true">
-            {CATEGORY_MAP[listing.category]?.emoji}
-          </div>
-        )}
+        <div className="flex h-44 items-center justify-center bg-slate-100 text-5xl" aria-hidden="true">
+          {CATEGORY_MAP[listing.category]?.emoji}
+        </div>
       </Link>
       <div className="flex flex-1 flex-col gap-2 p-4">
         <div className="flex items-start justify-between gap-2">

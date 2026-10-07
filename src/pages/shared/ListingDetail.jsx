@@ -98,17 +98,9 @@ export default function ListingDetail() {
       <div className="grid gap-6 lg:grid-cols-5">
         <div className="lg:col-span-3">
           <Card className="overflow-hidden p-0">
-            {listing.imageUrl ? (
-              <img
-                src={listing.imageUrl}
-                alt={listing.itemName}
-                className="max-h-[420px] w-full bg-slate-100 object-contain"
-              />
-            ) : (
-              <div className="flex h-64 items-center justify-center bg-slate-100 text-7xl" aria-hidden="true">
-                {CATEGORY_MAP[listing.category]?.emoji}
-              </div>
-            )}
+            <div className="flex h-64 items-center justify-center bg-slate-100 text-7xl" aria-hidden="true">
+              {CATEGORY_MAP[listing.category]?.emoji}
+            </div>
             <div className="space-y-4 p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>

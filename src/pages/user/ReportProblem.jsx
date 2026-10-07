@@ -8,11 +8,9 @@ import EmptyState from '../../components/ui/EmptyState';
 import { ListSkeleton } from '../../components/ui/Skeleton';
 import StatusBadge from '../../components/ui/StatusBadge';
 import { Select, Textarea } from '../../components/ui/FormFields';
-import ImageUpload from '../../components/ImageUpload';
 import { useAuth } from '../../hooks/useAuth';
 import { useRealtime } from '../../hooks/useRealtime';
 import { createComplaint, subscribeMyComplaints } from '../../services/complaintService';
-import { uploadImage } from '../../services/storageService';
 import { COMPLAINT_TYPES } from '../../utils/constants';
 import { friendlyError } from '../../utils/errors';
 import { formatDate, sortByDateDesc } from '../../utils/format';
@@ -28,7 +26,6 @@ export default function ReportProblem() {
     error: loadError,
   } = useRealtime((ok, fail) => subscribeMyComplaints(profile.uid, ok, fail), [profile.uid]);
   const [form, setForm] = useState(EMPTY);
-  const [file, setFile] = useState(null);
   const [errors, setErrors] = useState({});
   const [status, setStatus] = useState({ type: '', text: '' });
   const [submitting, setSubmitting] = useState(false);
@@ -49,11 +46,8 @@ export default function ReportProblem() {
     setSubmitting(true);
     setStatus({ type: '', text: '' });
     try {
-      let image = { url: '', path: '' };
-      if (file) image = await uploadImage('complaint-images', profile.uid, file);
-      await createComplaint(profile, { ...form, imageUrl: image.url, imagePath: image.path });
+      await createComplaint(profile, form);
       setForm(EMPTY);
-      setFile(null);
       setStatus({
         type: 'success',
         text: 'Thank you! Your report has been submitted. Verified reports earn EcoPoints.',
@@ -102,7 +96,6 @@ export default function ReportProblem() {
               placeholder="Street, landmark, area"
               required
             />
-            <ImageUpload label="Photo (optional)" file={file} onChange={setFile} />
             <Button type="submit" icon={Send} loading={submitting}>
               Submit report
             </Button>

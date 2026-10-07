@@ -10,21 +10,16 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
-import { listen, callFunction } from './firestoreHelpers';
+import { listen } from './firestoreHelpers';
 
 const col = collection(db, 'wasteItems');
 
-/** Sends an uploaded image (Storage path) to the classifyWaste Cloud Function. */
-export const classifyImage = (imagePath) => callFunction('classifyWaste', { imagePath });
-
-/** Saves an AI or manual classification to the user's waste history. */
+/** Saves a manual classification to the user's waste history. */
 export async function saveWasteRecord(uid, data) {
   const ref = doc(col);
   await setDoc(ref, {
     wasteId: ref.id,
     userId: uid,
-    imageUrl: data.imageUrl || '',
-    imagePath: data.imagePath || '',
     itemName: data.itemName,
     category: data.category,
     confidence: data.confidence ?? null,

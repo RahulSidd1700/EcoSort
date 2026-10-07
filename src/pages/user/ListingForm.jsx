@@ -6,11 +6,9 @@ import Button from '../../components/ui/Button';
 import Alert from '../../components/ui/Alert';
 import { PageLoader } from '../../components/ui/LoadingSpinner';
 import { Input, Select, Textarea } from '../../components/ui/FormFields';
-import ImageUpload from '../../components/ImageUpload';
 import ValueRatesTable from '../../components/ValueRatesTable';
 import { useAuth } from '../../hooks/useAuth';
 import { createListing, getListing, updateListing } from '../../services/listingService';
-import { uploadImage } from '../../services/storageService';
 import { CATEGORY_MAP, CONDITIONS, SELLABLE_CATEGORIES, UNITS } from '../../utils/constants';
 import { friendlyError } from '../../utils/errors';
 import { validate, minLen, positiveNumber, nonNegativeNumber, required } from '../../utils/validation';
@@ -34,11 +32,8 @@ export default function ListingForm() {
     expectedPrice: '',
     pickupAvailable: true,
     sellerArea: profile.area || '',
-    imageUrl: prefill.imageUrl || '',
-    imagePath: '',
     wasteId: prefill.wasteId || null,
   });
-  const [file, setFile] = useState(null);
   const [errors, setErrors] = useState({});
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(isEdit);
@@ -74,14 +69,11 @@ export default function ListingForm() {
     setSubmitting(true);
     setError('');
     try {
-      let image = { url: form.imageUrl, path: form.imagePath };
-      if (file) image = await uploadImage('listing-images', profile.uid, file);
-      const data = { ...form, imageUrl: image.url, imagePath: image.path };
       if (isEdit) {
-        await updateListing(id, data);
+        await updateListing(id, form);
         navigate(`/marketplace/${id}`, { state: { message: 'Listing updated successfully.' } });
       } else {
-        const newId = await createListing(profile, data);
+        const newId = await createListing(profile, form);
         navigate(`/marketplace/${newId}`, { state: { message: 'Listing created successfully.' } });
       }
     } catch (err) {
@@ -171,15 +163,6 @@ export default function ListingForm() {
               value={form.sellerArea}
               onChange={set('sellerArea')}
               hint="Shown on the listing card. Your full address stays private."
-            />
-            <ImageUpload
-              label="Image"
-              file={file}
-              existingUrl={form.imageUrl}
-              onChange={(f) => {
-                setFile(f);
-                if (!f) setForm({ ...form, imageUrl: '', imagePath: '' });
-              }}
             />
             <fieldset>
               <legend className="mb-1 text-sm font-medium text-slate-700">Pickup available?</legend>

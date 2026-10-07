@@ -82,13 +82,6 @@ export default function AdminComplaints() {
         <div className="grid gap-4 md:grid-cols-2">
           {rows.map((c) => (
             <article key={c.id} className="flex gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              {c.imageUrl && (
-                <img
-                  src={c.imageUrl}
-                  alt={`Photo for ${c.typeLabel}`}
-                  className="h-24 w-24 shrink-0 rounded-xl object-cover"
-                />
-              )}
               <div className="min-w-0 flex-1 space-y-1">
                 <div className="flex items-start justify-between gap-2">
                   <h3 className="font-semibold">{c.typeLabel}</h3>

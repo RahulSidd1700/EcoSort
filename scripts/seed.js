@@ -123,8 +123,6 @@ async function seedDemo() {
       ...demo,
       wasteId: w.id,
       userId: a.user.uid,
-      imageUrl: '',
-      imagePath: '',
       itemName: w.itemName,
       category: w.category,
       confidence: w.confidence,
@@ -152,8 +150,6 @@ async function seedDemo() {
     collectorName: null,
     landmark: '',
     notes: '',
-    imageUrl: '',
-    imagePath: '',
     address: user.address,
     preferredTime: 'morning',
     history: [],
@@ -193,7 +189,7 @@ async function seedDemo() {
   // Marketplace listings
   const listing = (id, seller, extra) => ({
     ...demo, listingId: id, sellerId: seller.uid, sellerName: seller.name, sellerArea: seller.area, wasteId: null, description: '',
-    imageUrl: '', imagePath: '', pickupAvailable: true, condition: 'good', buyerId: null, buyerName: null, offerPrice: null, offerMessage: null, history: [], ...extra,
+    pickupAvailable: true, condition: 'good', buyerId: null, buyerName: null, offerPrice: null, offerMessage: null, history: [], ...extra,
   });
   batch.set(db.collection('wasteListings').doc('demo-listing-1'), listing('demo-listing-1', a.user, {
     itemName: 'Old Samsung smartphone', category: 'ewaste', description: 'Working phone, cracked screen. Charger included.', quantity: 1, unit: 'item', condition: 'fair', expectedPrice: 1200, status: 'AVAILABLE', createdAt: daysAgo(6), updatedAt: daysAgo(6),
@@ -228,12 +224,12 @@ async function seedDemo() {
   // Complaints
   batch.set(db.collection('complaints').doc('demo-complaint-1'), {
     ...demo, complaintId: 'demo-complaint-1', userId: a.user.uid, userName: a.user.name, type: 'overflowing_garbage', typeLabel: 'Overflowing garbage',
-    description: 'Community bin near the park has been overflowing for three days.', imageUrl: '', imagePath: '', address: '6th Main, Koramangala, near the park',
+    description: 'Community bin near the park has been overflowing for three days.', address: '6th Main, Koramangala, near the park',
     status: 'SUBMITTED', createdAt: daysAgo(2), updatedAt: daysAgo(2),
   });
   batch.set(db.collection('complaints').doc('demo-complaint-2'), {
     ...demo, complaintId: 'demo-complaint-2', userId: a.user2.uid, userName: a.user2.name, type: 'waste_burning', typeLabel: 'Waste burning',
-    description: 'Someone is burning plastic waste in the empty plot every evening.', imageUrl: '', imagePath: '', address: 'Sector 3, HSR Layout',
+    description: 'Someone is burning plastic waste in the empty plot every evening.', address: 'Sector 3, HSR Layout',
     status: 'UNDER_REVIEW', adminNote: 'Forwarded to the ward office.', createdAt: daysAgo(5), updatedAt: daysAgo(4),
   });
 

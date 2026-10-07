@@ -17,14 +17,13 @@ function YesNo({ value, yes, no }) {
  * "What should you do with this?" panel shown after classification.
  * result: { itemName, category, description, recommendedAction, estimatedValueRange }
  */
-export default function DisposalRecommendation({ result, wasteId, imageUrl }) {
+export default function DisposalRecommendation({ result, wasteId }) {
   const category = CATEGORY_MAP[result.category];
   const canSell = SELLABLE_CATEGORIES.includes(result.category);
   const prefill = {
     wasteId,
     category: result.category,
     itemName: result.itemName,
-    imageUrl: imageUrl || '',
   };
 
   return (

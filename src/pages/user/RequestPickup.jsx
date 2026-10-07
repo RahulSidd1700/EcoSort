@@ -6,10 +6,8 @@ import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Alert from '../../components/ui/Alert';
 import { Input, Select, Textarea } from '../../components/ui/FormFields';
-import ImageUpload from '../../components/ImageUpload';
 import { useAuth } from '../../hooks/useAuth';
 import { createPickup, newPickupId } from '../../services/pickupService';
-import { uploadImage } from '../../services/storageService';
 import { CATEGORIES, CATEGORY_MAP, TIME_SLOTS, UNITS } from '../../utils/constants';
 import { friendlyError } from '../../utils/errors';
 import { todayISO } from '../../utils/format';
@@ -33,10 +31,8 @@ export default function RequestPickup() {
     preferredDate: '',
     preferredTime: '',
     notes: '',
-    imageUrl: prefill.imageUrl || '',
     wasteId: prefill.wasteId || null,
   });
-  const [file, setFile] = useState(null);
   const [errors, setErrors] = useState({});
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -65,9 +61,7 @@ export default function RequestPickup() {
     setSubmitting(true);
     setError('');
     try {
-      let image = { url: form.imageUrl, path: '' };
-      if (file) image = await uploadImage('pickup-images', profile.uid, file);
-      await createPickup(pickupId, profile, { ...form, imageUrl: image.url, imagePath: image.path });
+      await createPickup(pickupId, profile, form);
       navigate('/pickups', {
         state: { message: 'Pickup request submitted! You will be notified when a collector is assigned.' },
       });
@@ -165,15 +159,6 @@ export default function RequestPickup() {
               onChange={set('notes')}
               maxLength={500}
               placeholder="Anything the collector should know"
-            />
-            <ImageUpload
-              label="Image (optional)"
-              file={file}
-              existingUrl={form.imageUrl}
-              onChange={(f) => {
-                setFile(f);
-                if (!f) setForm({ ...form, imageUrl: '' });
-              }}
             />
             <Button type="submit" icon={Truck} loading={submitting}>
               Submit pickup request

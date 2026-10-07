@@ -31,7 +31,7 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if (signedIn() && uid() == userId) || isAdmin();
       // Self-registration always creates a normal USER with 0 points.
-      allow create: if signedIn() && uid() == userId
+      allow create: if (signedIn() && uid() == userId
         && incoming().keys().hasOnly(['uid', 'name', 'email', 'phone', 'address', 'area', 'role', 'ecoPoints', 'active', 'createdAt'])
         && incoming().uid == userId
         && incoming().role == 'user'
@@ -42,14 +42,27 @@ service cloud.firestore {
         && str(incoming().phone, 7, 20)
         && str(incoming().address, 5, 300)
         && optStr(incoming().area, 100)
-        && incoming().createdAt == request.time;
+        && incoming().createdAt == request.time)
+        || (isAdmin()
+        && incoming().keys().hasOnly(['uid', 'name', 'email', 'phone', 'address', 'area', 'role', 'ecoPoints', 'active', 'createdAt'])
+        && incoming().uid == userId
+        && incoming().role == 'collector'
+        && incoming().ecoPoints == 0
+        && incoming().active == true
+        && str(incoming().email, 5, 150)
+        && str(incoming().name, 2, 100)
+        && str(incoming().phone, 7, 20)
+        && optStr(incoming().address, 300)
+        && optStr(incoming().area, 100)
+        && incoming().createdAt == request.time);
       // Users may edit only basic profile fields (never role / ecoPoints / active).
       allow update: if signedIn() && uid() == userId && isActive()
         && changedOnly(['name', 'phone', 'address', 'area', 'updatedAt'])
         && str(incoming().name, 2, 100)
         && str(incoming().phone, 7, 20)
         && optStr(incoming().address, 300)
-        && optStr(incoming().area, 100);
+        && optStr(incoming().area, 100)
+        || (isAdmin() && changedOnly(['active', 'updatedAt']) && incoming().active is bool);
       allow delete: if false;
     }
 
@@ -58,7 +71,17 @@ service cloud.firestore {
       allow read: if isAdmin() || (signedIn() && uid() == collectorId);
       allow update: if isAdmin()
         || (isCollector() && uid() == collectorId && changedOnly(['available']) && incoming().available is bool);
-      allow create, delete: if false;
+      allow create: if isAdmin()
+        && incoming().keys().hasOnly(['uid', 'name', 'email', 'phone', 'serviceAreas', 'available', 'active', 'createdAt'])
+        && incoming().uid == collectorId
+        && str(incoming().name, 2, 100)
+        && str(incoming().email, 5, 150)
+        && optStr(incoming().phone, 20)
+        && incoming().serviceAreas is list
+        && incoming().available == true
+        && incoming().active == true
+        && incoming().createdAt == request.time;
+      allow delete: if false;
     }
 
     // ---------- wasteItems (classification history) ----------
@@ -66,7 +89,7 @@ service cloud.firestore {
       allow read: if (signedIn() && existing().userId == uid()) || isAdmin();
       allow create: if isActive()
         && incoming().userId == uid()
-        && incoming().keys().hasOnly(['wasteId', 'userId', 'imageUrl', 'imagePath', 'itemName', 'category', 'confidence',
+        && incoming().keys().hasOnly(['wasteId', 'userId', 'itemName', 'category', 'confidence',
              'description', 'recommendedAction', 'quantity', 'unit', 'recyclable', 'estimatedValueMin',
              'estimatedValueMax', 'source', 'createdAt'])
         && validCategory(incoming().category)
@@ -103,7 +126,7 @@ service cloud.firestore {
       allow create: if isUser()
         && incoming().sellerId == uid()
         && incoming().keys().hasOnly(['listingId', 'sellerId', 'sellerName', 'sellerArea', 'wasteId', 'itemName',
-             'category', 'description', 'quantity', 'unit', 'condition', 'expectedPrice', 'imageUrl', 'imagePath',
+             'category', 'description', 'quantity', 'unit', 'condition', 'expectedPrice',
              'pickupAvailable', 'status', 'createdAt', 'updatedAt'])
         && incoming().status == 'AVAILABLE'
         && validListingFields()
@@ -111,9 +134,38 @@ service cloud.firestore {
       // Seller may edit details only while AVAILABLE; status changes go through Cloud Functions.
       allow update: if isUser() && existing().sellerId == uid()
         && existing().status == 'AVAILABLE'
-        && changedOnly(['itemName', 'category', 'description', 'quantity', 'unit', 'condition', 'expectedPrice',
-             'imageUrl', 'imagePath', 'pickupAvailable', 'sellerArea', 'updatedAt'])
+           && changedOnly(['itemName', 'category', 'description', 'quantity', 'unit', 'condition', 'expectedPrice',
+             'pickupAvailable', 'sellerArea', 'updatedAt'])
         && validListingFields();
+      allow update: if isCollector()
+        && existing().status == 'AVAILABLE'
+        && incoming().status == 'OFFER_RECEIVED'
+        && incoming().buyerId == uid()
+        && str(incoming().buyerName, 2, 100)
+        && (incoming().offerPrice is int || incoming().offerPrice is float)
+        && incoming().offerPrice >= 0
+        && optStr(incoming().offerMessage, 500)
+        && changedOnly(['buyerId', 'buyerName', 'offerPrice', 'offerMessage', 'status', 'updatedAt']);
+      allow update: if isUser()
+        && existing().sellerId == uid()
+        && existing().status == 'OFFER_RECEIVED'
+        && incoming().status in ['ACCEPTED', 'AVAILABLE']
+        && changedOnly(['status', 'updatedAt']);
+      allow update: if isCollector()
+        && existing().buyerId == uid()
+        && existing().status == 'OFFER_RECEIVED'
+        && incoming().status == 'AVAILABLE'
+        && changedOnly(['status', 'updatedAt']);
+      allow update: if isActive()
+        && (existing().sellerId == uid() || existing().buyerId == uid())
+        && existing().status == 'ACCEPTED'
+        && incoming().status == 'SOLD'
+        && changedOnly(['status', 'soldAt', 'updatedAt']);
+      allow update: if isUser()
+        && existing().sellerId == uid()
+        && existing().status in ['AVAILABLE', 'ACCEPTED']
+        && incoming().status == 'CANCELLED'
+        && changedOnly(['status', 'updatedAt']);
       // Delete before acceptance (or after cancellation); admins can remove any listing.
       allow delete: if (isActive() && existing().sellerId == uid()
           && existing().status in ['AVAILABLE', 'OFFER_RECEIVED', 'CANCELLED'])
@@ -133,7 +185,7 @@ service cloud.firestore {
         && incoming().userId == uid()
         && incoming().keys().hasOnly(['pickupId', 'userId', 'userName', 'userPhone', 'wasteId', 'collectorId',
              'collectorName', 'category', 'itemName', 'quantity', 'unit', 'address', 'landmark', 'preferredDate',
-             'preferredTime', 'notes', 'imageUrl', 'imagePath', 'status', 'createdAt', 'updatedAt'])
+             'preferredTime', 'notes', 'status', 'createdAt', 'updatedAt'])
         && incoming().status == 'REQUESTED'
         && incoming().collectorId == null
         && validCategory(incoming().category)
@@ -146,8 +198,25 @@ service cloud.firestore {
         && incoming().preferredTime in ['morning', 'afternoon', 'evening']
         && optStr(incoming().notes, 500)
         && incoming().createdAt == request.time;
-      // All status changes go through Cloud Functions (assignCollector / updatePickupStatus).
-      allow update, delete: if false;
+      // Admins can assign or reassign a pickup without Cloud Functions.
+      allow update: if isAdmin()
+        && existing().status in ['REQUESTED', 'ASSIGNED']
+        && incoming().status == 'ASSIGNED'
+        && incoming().collectorId is string
+        && exists(/databases/$(database)/documents/users/$(incoming().collectorId))
+        && get(/databases/$(database)/documents/users/$(incoming().collectorId)).data.role == 'collector'
+        && get(/databases/$(database)/documents/users/$(incoming().collectorId)).data.active == true
+        && changedOnly(['collectorId', 'collectorName', 'collectorPhone', 'status', 'acceptedByCollector', 'assignedAt', 'updatedAt']);
+      allow update: if isCollector()
+        && existing().collectorId == uid()
+        && (
+          (existing().status == 'ASSIGNED' && incoming().status == 'ASSIGNED' && incoming().acceptedByCollector == true)
+          || (existing().status == 'ASSIGNED' && existing().acceptedByCollector == true && incoming().status == 'ON_THE_WAY')
+          || (existing().status == 'ON_THE_WAY' && incoming().status == 'COLLECTED')
+          || (existing().status == 'COLLECTED' && incoming().status == 'COMPLETED')
+        )
+        && changedOnly(['status', 'acceptedByCollector', 'updatedAt']);
+      allow delete: if false;
     }
 
     // ---------- complaints ----------
@@ -155,14 +224,18 @@ service cloud.firestore {
       allow read: if (signedIn() && existing().userId == uid()) || isAdmin();
       allow create: if isActive()
         && incoming().userId == uid()
-        && incoming().keys().hasOnly(['complaintId', 'userId', 'userName', 'type', 'typeLabel', 'description',
-             'imageUrl', 'imagePath', 'address', 'status', 'createdAt', 'updatedAt'])
+           && incoming().keys().hasOnly(['complaintId', 'userId', 'userName', 'type', 'typeLabel', 'description',
+             'address', 'status', 'createdAt', 'updatedAt'])
         && incoming().type in ['illegal_dumping', 'overflowing_garbage', 'waste_burning', 'uncollected_waste', 'other']
         && incoming().status == 'SUBMITTED'
         && str(incoming().description, 10, 1000)
         && str(incoming().address, 5, 300)
         && incoming().createdAt == request.time;
       allow update: if false; // updateComplaintStatus Cloud Function
+      allow update: if isAdmin()
+        && incoming().status in ['SUBMITTED', 'UNDER_REVIEW', 'ASSIGNED', 'RESOLVED', 'REJECTED']
+        && optStr(incoming().adminNote, 1000)
+        && changedOnly(['status', 'adminNote', 'updatedAt']);
       allow delete: if isAdmin();
     }
 

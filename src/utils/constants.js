@@ -153,6 +153,4 @@ export const DEFAULT_IMPACT = {
   co2PerKg: { recyclable: 1.5, ewaste: 2.0, organic: 0.5, hazardous: 0.3, non_recyclable: 0.1 },
 };
 
-export const MAX_IMAGE_MB = 5;
-export const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 export const LOW_CONFIDENCE = 0.6;

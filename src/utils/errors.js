@@ -15,10 +15,6 @@ const MESSAGES = {
   'permission-denied': 'You do not have permission to perform this action.',
   unavailable: 'Service is temporarily unavailable. Please check your internet connection.',
   'not-found': 'The requested record was not found.',
-  'storage/unauthorized': 'Unable to upload image. Please check the file type and size.',
-  'storage/canceled': 'Upload was cancelled.',
-  'storage/retry-limit-exceeded': 'Unable to upload image. Please try again.',
-  'storage/unknown': 'Unable to upload image. Please try again.',
   'functions/unauthenticated': 'Please log in to continue.',
   'functions/internal': 'Something went wrong on the server. Please try again.',
 };
@@ -32,7 +28,7 @@ export function friendlyError(error, fallback = 'Something went wrong. Please tr
     return error.message || fallback;
   }
   if (MESSAGES[code]) return MESSAGES[code];
-  const short = code.replace(/^(firestore|functions|storage)\//, '');
+  const short = code.replace(/^(firestore|functions)\//, '');
   if (MESSAGES[short]) return MESSAGES[short];
   if (typeof navigator !== 'undefined' && !navigator.onLine) return 'Please check your internet connection.';
   return fallback;

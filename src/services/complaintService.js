@@ -1,6 +1,6 @@
-import { collection, doc, setDoc, query, where, orderBy, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, setDoc, updateDoc, query, where, orderBy, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/config';
-import { listen, callFunction } from './firestoreHelpers';
+import { listen } from './firestoreHelpers';
 import { COMPLAINT_TYPES } from '../utils/constants';
 
 const col = collection(db, 'complaints');
@@ -14,8 +14,6 @@ export async function createComplaint(profile, data) {
     type: data.type,
     typeLabel: COMPLAINT_TYPES.find((t) => t.value === data.type)?.label || data.type,
     description: data.description.trim(),
-    imageUrl: data.imageUrl || '',
-    imagePath: data.imagePath || '',
     address: data.address.trim(),
     status: 'SUBMITTED',
     createdAt: serverTimestamp(),
@@ -25,7 +23,7 @@ export async function createComplaint(profile, data) {
 }
 
 export const updateComplaintStatus = (complaintId, status, adminNote = '') =>
-  callFunction('updateComplaintStatus', { complaintId, status, adminNote });
+  updateDoc(doc(db, 'complaints', complaintId), { status, adminNote: adminNote.trim(), updatedAt: serverTimestamp() });
 
 export const subscribeMyComplaints = (uid, onData, onError) =>
   listen(query(col, where('userId', '==', uid)), onData, onError);

@@ -6,7 +6,7 @@
 
 EcoSort helps people identify waste from a photo, learn how to dispose of it safely, sell recyclable materials and e-waste, request doorstep pickups, track the collection in real time, earn EcoPoints and see their estimated environmental impact.
 
-It is a B.Tech mini-project. It demonstrates **AI + React + Firebase (Auth, Firestore, Storage, Cloud Functions) + role-based access + CRUD + dashboards + analytics** and keeps the architecture simple enough to explain in a viva.
+It is a B.Tech mini-project. It demonstrates **React + Firebase Auth + Firestore + role-based access + CRUD + dashboards + analytics** and keeps the architecture simple enough to explain in a viva.
 
 ---
 
@@ -36,8 +36,7 @@ It is a B.Tech mini-project. It demonstrates **AI + React + Firebase (Auth, Fire
 ## 2. Technology stack
 
 - **Frontend:** React 19, React Router 7, Vite, Tailwind CSS 4, Recharts (charts), Lucide (icons)
-- **Backend:** Firebase Authentication, Cloud Firestore, Firebase Storage, Cloud Functions (Node.js 22, 2nd gen)
-- **AI:** A vision model called **only from Cloud Functions**. Google Gemini is the default and OpenAI is also supported.
+- **Backend:** Firebase Authentication, Cloud Firestore, Cloud Functions (Node.js 22, 2nd gen)
 - No separate Express server, Redux, Docker or payment gateway.
 
 ## 3. Folder structure
@@ -50,7 +49,7 @@ miniproject/
 │   ├── hooks/                useAuth, useRealtime, useSettings, useUserActivity, useAdminData, useCategories
 │   ├── services/             authService, wasteService, listingService, pickupService,
 │   │                         complaintService, rewardService, notificationService,
-│   │                         partnerService, storageService, adminService
+│   │                         partnerService, adminService
 │   ├── components/
 │   │   ├── ui/               Button, Card, Modal, Input/Select/Textarea, StatusBadge,
 │   │   │                     LoadingSpinner, Skeleton, EmptyState, Alert, DataTable, ...
@@ -65,7 +64,6 @@ miniproject/
 │   └── test/                 unit tests for the AI response normaliser
 ├── scripts/                  seed.js (config + demo data), setRole.js (create admin)
 ├── firestore.rules           Firestore security rules
-├── storage.rules             Storage security rules
 ├── firebase.json             Hosting / Functions / Emulator configuration
 └── .env.example              Frontend environment variables template
 ```
@@ -75,10 +73,8 @@ miniproject/
 1. Create a project in the [Firebase Console](https://console.firebase.google.com/).
 2. **Authentication** → Sign-in method → enable **Email/Password**.
 3. **Firestore Database** → create a database (production mode). Choose a location such as `asia-south1`.
-4. **Storage** → get started.
-5. Upgrade to the **Blaze (pay-as-you-go)** plan. Cloud Functions and Cloud Storage require it. A small project normally stays inside the free quota, but you can set a budget alert to be safe. *For free local development use the Emulator Suite (section 7).*
-6. **Project settings → Your apps → Add web app**, then copy the config values.
-7. Install the Firebase CLI and log in:
+4. **Project settings → Your apps → Add web app**, then copy the config values.
+5. Install the Firebase CLI and log in:
    ```bash
    npm install -g firebase-tools
    firebase login
@@ -102,26 +98,7 @@ VITE_USE_EMULATORS=false
 
 The Firebase web config only *identifies* the project; it is not a secret. Security comes from Authentication and the security rules. **Never put the AI API key in `.env` or anywhere in `src/`.**
 
-## 6. AI API setup
-
-The AI key is stored as a **Cloud Functions secret** (Google Secret Manager) and is only read inside the `classifyWaste` function.
-
-1. Get an API key, for example from [Google AI Studio](https://aistudio.google.com/) for Gemini.
-2. Store it as a secret:
-   ```bash
-   firebase functions:secrets:set AI_API_KEY
-   ```
-3. Choose the provider and model in `functions/.env` (non-secret settings):
-   ```env
-   AI_PROVIDER=gemini          # or: openai
-   AI_MODEL=gemini-2.5-flash   # or e.g. gpt-4o-mini
-   ```
-
-**How it works:** the browser uploads the image to Storage (`waste-images/<uid>/...`) and calls `classifyWaste({ imagePath })`. The function checks that the image belongs to the caller, downloads it with the Admin SDK and sends it to the AI provider. It then validates the answer: only the 5 categories are allowed, confidence is clamped to 0–1, and hazardous items always get fixed safe advice. If anything fails, it returns *"AI classification is currently unavailable."* and the app offers **Select Category Manually**.
-
-To add another provider, create `functions/src/ai/providers/<name>.js` and register it in `functions/src/ai/index.js`.
-
-## 7. How to run locally
+## 6. How to run locally
 
 ```bash
 npm install
@@ -141,7 +118,7 @@ VITE_USE_EMULATORS=true
 copy functions\.secret.local.example functions\.secret.local   # then edit it
 
 # terminal 1
-npm run emulators              # Auth, Firestore, Storage, Functions + UI at http://localhost:4000
+npm run emulators              # Auth, Firestore, Functions + UI at http://localhost:4000
 
 # terminal 2 - demo accounts + demo data (password comes from an env variable)
 $env:DEMO_PASSWORD="choose-a-password"     # PowerShell   (bash: export DEMO_PASSWORD=...)
@@ -179,7 +156,7 @@ All demo documents carry `isDemo: true` and are labelled "Demo" in the UI. Remov
 
 ```bash
 npm run build                                  # production build into dist/
-firebase deploy --only firestore:rules,storage # security rules
+firebase deploy --only firestore:rules        # security rules
 firebase deploy --only functions               # Cloud Functions (asks for AI_API_KEY if missing)
 firebase deploy --only hosting                 # React app (Firebase Hosting)
 # or everything at once
@@ -219,8 +196,7 @@ Dashboard statistics are **calculated from queries**, not stored as duplicate co
   - Awarding EcoPoints, creating notifications, and creating or deactivating accounts.
 - **Points exactly once:** completion runs in a Firestore **transaction**. The reward document ID is deterministic (`PICKUP_<id>`, `SALE_<id>`, `COMPLAINT_<id>`). If it already exists, no points are added, and a completed pickup cannot be completed again.
 - **No duplicate pickups:** the pickup document ID is generated when the form opens and the button is disabled while submitting. A second write with the same ID would be an *update*, which the rules deny.
-- **Storage rules:** users upload only to their own folder, and only JPG/PNG/WebP under 5 MB.
-- **Secrets:** the AI key is a Functions secret. Admin credentials and service-account keys are never in the repo (see `.gitignore`).
+- Admin credentials and service-account keys are never in the repo (see `.gitignore`).
 - Route guards in React are only for navigation. Real protection is in the rules and functions.
 
 ## 12. EcoPoints

@@ -73,13 +73,6 @@ export default function PickupCard({ pickup, showTimeline = true, showUser = fal
             </dd>
           </div>
           {pickup.notes && <p className="rounded-lg bg-slate-50 p-2 text-slate-600">Notes: {pickup.notes}</p>}
-          {pickup.imageUrl && (
-            <img
-              src={pickup.imageUrl}
-              alt={`Waste for pickup ${pickup.itemName}`}
-              className="h-24 w-24 rounded-lg object-cover"
-            />
-          )}
         </dl>
         {showTimeline && <PickupTimeline pickup={pickup} />}
       </div>

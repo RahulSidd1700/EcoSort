@@ -94,15 +94,8 @@ export default function AdminWaste() {
           columns={[
             {
               key: 'img',
-              label: 'Image',
-              render: (w) =>
-                w.imageUrl ? (
-                  <img src={w.imageUrl} alt={w.itemName} className="h-12 w-12 rounded-lg object-cover" />
-                ) : (
-                  <span className="text-2xl" aria-hidden="true">
-                    {CATEGORY_MAP[w.category]?.emoji}
-                  </span>
-                ),
+                label: 'Type',
+                render: (w) => <span className="text-2xl" aria-hidden="true">{CATEGORY_MAP[w.category]?.emoji}</span>,
             },
             { key: 'itemName', label: 'Item', render: (w) => <span className="font-medium">{w.itemName}</span> },
             { key: 'category', label: 'Category', render: (w) => <CategoryBadge category={w.category} /> },

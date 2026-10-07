@@ -1,6 +1,6 @@
-import { collection, doc, setDoc, query, where, orderBy, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebase/config';
-import { listen, callFunction } from './firestoreHelpers';
+import { collection, doc, getDoc, setDoc, updateDoc, query, where, orderBy, serverTimestamp } from 'firebase/firestore';
+import { auth, db } from '../firebase/config';
+import { listen } from './firestoreHelpers';
 
 const col = collection(db, 'pickupRequests');
 
@@ -25,8 +25,6 @@ export async function createPickup(pickupId, profile, data) {
     preferredDate: data.preferredDate,
     preferredTime: data.preferredTime,
     notes: (data.notes || '').trim(),
-    imageUrl: data.imageUrl || '',
-    imagePath: data.imagePath || '',
     status: 'REQUESTED',
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -34,11 +32,43 @@ export async function createPickup(pickupId, profile, data) {
   return pickupId;
 }
 
-/** actions: accept | on_the_way | collected | complete | cancel | set_status (admin) */
-export const updatePickupStatus = (pickupId, action, extra = {}) =>
-  callFunction('updatePickupStatus', { pickupId, action, ...extra });
+/** Updates the next collector status directly when Cloud Functions are unavailable. */
+export async function updatePickupStatus(pickupId, action) {
+  const pickupSnap = await getDoc(doc(db, 'pickupRequests', pickupId));
+  if (!pickupSnap.exists()) throw new Error('Pickup request not found.');
+  const pickup = pickupSnap.data();
+  const nextStatus = { accept: 'ASSIGNED', on_the_way: 'ON_THE_WAY', collected: 'COLLECTED', complete: 'COMPLETED' }[action];
+  if (!nextStatus) throw new Error('Unsupported pickup action.');
+  const currentUid = auth.currentUser?.uid;
+  if (!currentUid || pickup.collectorId !== currentUid) throw new Error('Only the assigned collector can update this pickup.');
+  if (action === 'accept' && (pickup.status !== 'ASSIGNED' || pickup.acceptedByCollector)) throw new Error('Pickup is not ready to accept.');
+  if (action === 'on_the_way' && (pickup.status !== 'ASSIGNED' || !pickup.acceptedByCollector)) throw new Error('Accept the pickup first.');
+  if (action === 'collected' && pickup.status !== 'ON_THE_WAY') throw new Error('Pickup must be on the way first.');
+  if (action === 'complete' && pickup.status !== 'COLLECTED') throw new Error('Pickup must be collected first.');
+  await updateDoc(doc(db, 'pickupRequests', pickupId), {
+    status: nextStatus,
+    ...(action === 'accept' ? { acceptedByCollector: true } : {}),
+    updatedAt: serverTimestamp(),
+  });
+  return { success: true };
+}
 
-export const assignCollector = (pickupId, collectorId) => callFunction('assignCollector', { pickupId, collectorId });
+export async function assignCollector(pickupId, collectorId) {
+  const collectorSnap = await getDoc(doc(db, 'collectors', collectorId));
+  if (!collectorSnap.exists() || collectorSnap.data().active === false) {
+    throw new Error('Selected collector is not active.');
+  }
+  const collector = collectorSnap.data();
+  await updateDoc(doc(db, 'pickupRequests', pickupId), {
+    collectorId,
+    collectorName: collector.name || 'Collector',
+    collectorPhone: collector.phone || '',
+    status: 'ASSIGNED',
+    acceptedByCollector: false,
+    assignedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+}
 
 export const subscribeUserPickups = (uid, onData, onError) =>
   listen(query(col, where('userId', '==', uid)), onData, onError);

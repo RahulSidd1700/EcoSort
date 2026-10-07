@@ -12,7 +12,6 @@ import ValueRatesTable from '../../components/ValueRatesTable';
 import { useAuth } from '../../hooks/useAuth';
 import { useRealtime } from '../../hooks/useRealtime';
 import { subscribeMyListings, deleteListing } from '../../services/listingService';
-import { deleteImage } from '../../services/storageService';
 import { friendlyError } from '../../utils/errors';
 import { sortByDateDesc } from '../../utils/format';
 
@@ -28,7 +27,6 @@ export default function SellWaste() {
     setDeleting(true);
     try {
       await deleteListing(toDelete.id);
-      if (toDelete.imagePath?.startsWith('listing-images/')) await deleteImage(toDelete.imagePath);
       setMessage({ type: 'success', text: 'Listing deleted.' });
     } catch (err) {
       setMessage({ type: 'error', text: friendlyError(err, 'Could not delete the listing.') });

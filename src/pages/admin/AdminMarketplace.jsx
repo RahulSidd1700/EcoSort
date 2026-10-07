@@ -230,9 +230,6 @@ export default function AdminMarketplace() {
       >
         {selected && (
           <div className="space-y-4 text-sm">
-            {selected.imageUrl && (
-              <img src={selected.imageUrl} alt={selected.itemName} className="max-h-56 rounded-xl object-contain" />
-            )}
             <div className="flex gap-2">
               <CategoryBadge category={selected.category} />
               <StatusBadge status={selected.status} />
