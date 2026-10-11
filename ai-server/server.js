@@ -9,6 +9,7 @@ const apiKey = process.env.GROQ_API_KEY;
 const groq = apiKey ? new Groq({ apiKey }) : null;
 
 app.use(cors({ origin: true }));
+app.get('/', (_req, res) => res.json({ status: 'EcoSort AI server running', ok: true, configured: Boolean(groq) }));
 app.get('/api/health', (_req, res) => res.json({ ok: true, configured: Boolean(groq) }));
 
 const SYSTEM_PROMPT = `You are EcoSort, a waste-image classification assistant.
