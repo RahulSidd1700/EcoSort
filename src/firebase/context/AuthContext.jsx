@@ -28,6 +28,7 @@ export function AuthProvider({ children }) {
         return;
       }
       setLoading(true);
+      let missingTimer = null;
       unsubProfile = listenDoc(
         doc(db, 'users', firebaseUser.uid),
         (data) => {
@@ -36,11 +37,23 @@ export function AuthProvider({ children }) {
             signOut(auth);
             return;
           }
-          setProfile(data);
-          setLoading(false);
+          if (data) {
+            if (missingTimer) clearTimeout(missingTimer);
+            setProfile(data);
+            setLoading(false);
+          } else {
+            // Profile document may still be writing during registration. Wait up to 3s before marking null.
+            if (!missingTimer) {
+              missingTimer = setTimeout(() => {
+                setProfile(null);
+                setLoading(false);
+              }, 3000);
+            }
+          }
         },
         (error) => {
           console.error(error);
+          if (missingTimer) clearTimeout(missingTimer);
           setProfile(null);
           setLoading(false);
         },

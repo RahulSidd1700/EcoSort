@@ -15,7 +15,8 @@
     "seed:config": "node scripts/seed.js --config",
     "set-role": "node scripts/setRole.js",
     "test:functions": "npm --prefix functions test",
-    "test:e2e": "node scripts/e2e-emulator-test.js"
+    "test:e2e": "node scripts/e2e-emulator-test.js",
+    "ai-server": "npm --prefix ai-server run dev"
   },
   "dependencies": {
     "firebase": "^12.19.0",

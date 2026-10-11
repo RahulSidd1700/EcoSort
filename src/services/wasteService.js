@@ -14,7 +14,19 @@ import { listen } from './firestoreHelpers';
 
 const col = collection(db, 'wasteItems');
 
-/** Saves a manual classification to the user's waste history. */
+export async function classifyImage(imageDataUrl, mimeType) {
+  const apiUrl = import.meta.env.VITE_AI_API_URL || 'http://localhost:8787';
+  const response = await fetch(`${apiUrl}/api/classify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ image: imageDataUrl, mimeType }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'Image classification failed.');
+  return data;
+}
+
+/** Saves an AI or manual classification to the user's waste history. */
 export async function saveWasteRecord(uid, data) {
   const ref = doc(col);
   await setDoc(ref, {

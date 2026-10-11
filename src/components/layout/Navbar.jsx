@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Menu, X } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Menu, X, Home } from 'lucide-react';
 import Logo from './Logo';
 import Button from '../ui/Button';
 import { useAuth, homePathForRole } from '../../hooks/useAuth';
@@ -31,7 +32,17 @@ export default function Navbar() {
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur">
       <nav className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3" aria-label="Main">
-        <Logo />
+        <div className="flex items-center gap-2">
+          <Logo />
+          <Link
+            to={user ? homePathForRole(role) : '/'}
+            className="flex items-center gap-1 rounded-lg p-1.5 text-slate-700 hover:bg-brand-50 hover:text-brand-700 lg:hidden"
+            title="Home"
+            aria-label="Home"
+          >
+            <Home size={20} className="text-brand-600" />
+          </Link>
+        </div>
         <ul className="hidden items-center gap-6 lg:flex">
           {LINKS.map((l) => (
             <li key={l.href}>

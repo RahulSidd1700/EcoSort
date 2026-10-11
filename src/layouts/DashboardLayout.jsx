@@ -1,10 +1,10 @@
 import { Suspense, useState } from 'react';
 import { Link, Outlet, useNavigate } from 'react-router-dom';
-import { Bell, Menu } from 'lucide-react';
+import { Bell, Menu, Home } from 'lucide-react';
 import Sidebar from '../components/layout/Sidebar';
 import ErrorBoundary from '../components/ui/ErrorBoundary';
 import { PageLoader } from '../components/ui/LoadingSpinner';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth, homePathForRole } from '../hooks/useAuth';
 import { useRealtime } from '../hooks/useRealtime';
 import { subscribeNotifications } from '../services/notificationService';
 import { logout } from '../services/authService';
@@ -33,15 +33,26 @@ export default function DashboardLayout() {
       <Sidebar role={role} open={open} onClose={() => setOpen(false)} onLogout={handleLogout} unreadCount={unread} />
       <div className="lg:pl-64">
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200 bg-white/90 px-4 backdrop-blur sm:px-6">
-          <button
-            className="rounded-lg p-2 hover:bg-slate-100 lg:hidden"
-            onClick={() => setOpen(true)}
-            aria-label="Open menu"
-          >
-            <Menu size={22} />
-          </button>
-          <div className="hidden text-sm text-slate-500 lg:block">
-            Signed in as <span className="font-medium text-slate-700 capitalize">{role}</span>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              className="rounded-lg p-2 text-slate-700 hover:bg-slate-100 lg:hidden"
+              onClick={() => setOpen(true)}
+              aria-label="Open menu"
+            >
+              <Menu size={22} />
+            </button>
+            <Link
+              to={homePathForRole(role)}
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-slate-700 hover:bg-brand-50 hover:text-brand-700 transition-colors"
+              title="Dashboard Home"
+              aria-label="Go to Dashboard Home"
+            >
+              <Home size={20} className="text-brand-600 shrink-0" />
+              <span className="text-sm font-semibold text-slate-800">Home</span>
+            </Link>
+            <div className="hidden text-sm text-slate-500 md:block">
+              Signed in as <span className="font-medium text-slate-700 capitalize">{role}</span>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             {role === 'user' && (
