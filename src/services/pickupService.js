@@ -1,6 +1,6 @@
 import { collection, doc, getDoc, setDoc, updateDoc, query, where, orderBy, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
-import { listen } from './firestoreHelpers';
+import { listen, callFunction } from './firestoreHelpers';
 
 const col = collection(db, 'pickupRequests');
 
@@ -32,25 +32,48 @@ export async function createPickup(pickupId, profile, data) {
   return pickupId;
 }
 
-/** Updates the next collector status directly when Cloud Functions are unavailable. */
+/** Updates pickup status via Cloud Function, with direct Firestore update fallback. */
 export async function updatePickupStatus(pickupId, action) {
-  const pickupSnap = await getDoc(doc(db, 'pickupRequests', pickupId));
-  if (!pickupSnap.exists()) throw new Error('Pickup request not found.');
-  const pickup = pickupSnap.data();
-  const nextStatus = { accept: 'ASSIGNED', on_the_way: 'ON_THE_WAY', collected: 'COLLECTED', complete: 'COMPLETED' }[action];
-  if (!nextStatus) throw new Error('Unsupported pickup action.');
   const currentUid = auth.currentUser?.uid;
-  if (!currentUid || pickup.collectorId !== currentUid) throw new Error('Only the assigned collector can update this pickup.');
-  if (action === 'accept' && (pickup.status !== 'ASSIGNED' || pickup.acceptedByCollector)) throw new Error('Pickup is not ready to accept.');
-  if (action === 'on_the_way' && (pickup.status !== 'ASSIGNED' || !pickup.acceptedByCollector)) throw new Error('Accept the pickup first.');
-  if (action === 'collected' && pickup.status !== 'ON_THE_WAY') throw new Error('Pickup must be on the way first.');
-  if (action === 'complete' && pickup.status !== 'COLLECTED') throw new Error('Pickup must be collected first.');
-  await updateDoc(doc(db, 'pickupRequests', pickupId), {
-    status: nextStatus,
-    ...(action === 'accept' ? { acceptedByCollector: true } : {}),
-    updatedAt: serverTimestamp(),
-  });
-  return { success: true };
+  if (!currentUid) throw new Error('Please log in to continue.');
+
+  try {
+    return await callFunction('updatePickupStatus', { pickupId, action });
+  } catch (fnErr) {
+    // If Cloud Functions are unavailable or in emulator without functions, fallback to client update
+    const pickupSnap = await getDoc(doc(db, 'pickupRequests', pickupId));
+    if (!pickupSnap.exists()) throw new Error('Pickup request not found.', { cause: fnErr });
+    const pickup = pickupSnap.data();
+
+    if (action === 'cancel') {
+      const isOwner = pickup.userId === currentUid;
+      if (!isOwner) throw new Error('Only the requester can cancel this pickup.', { cause: fnErr });
+      if (!['REQUESTED', 'ASSIGNED'].includes(pickup.status)) {
+        throw new Error('This pickup can no longer be cancelled.', { cause: fnErr });
+      }
+      await updateDoc(doc(db, 'pickupRequests', pickupId), {
+        status: 'CANCELLED',
+        updatedAt: serverTimestamp(),
+      });
+      return { success: true };
+    }
+
+    const nextStatus = { accept: 'ASSIGNED', on_the_way: 'ON_THE_WAY', collected: 'COLLECTED', complete: 'COMPLETED' }[action];
+    if (!nextStatus) throw fnErr;
+
+    if (pickup.collectorId !== currentUid) throw new Error('Only the assigned collector can update this pickup.', { cause: fnErr });
+    if (action === 'accept' && (pickup.status !== 'ASSIGNED' || pickup.acceptedByCollector)) throw new Error('Pickup is not ready to accept.', { cause: fnErr });
+    if (action === 'on_the_way' && (pickup.status !== 'ASSIGNED' || !pickup.acceptedByCollector)) throw new Error('Accept the pickup first.', { cause: fnErr });
+    if (action === 'collected' && pickup.status !== 'ON_THE_WAY') throw new Error('Pickup must be on the way first.', { cause: fnErr });
+    if (action === 'complete' && pickup.status !== 'COLLECTED') throw new Error('Pickup must be collected first.', { cause: fnErr });
+
+    await updateDoc(doc(db, 'pickupRequests', pickupId), {
+      status: nextStatus,
+      ...(action === 'accept' ? { acceptedByCollector: true } : {}),
+      updatedAt: serverTimestamp(),
+    });
+    return { success: true };
+  }
 }
 
 export async function assignCollector(pickupId, collectorId) {

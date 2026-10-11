@@ -207,6 +207,11 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/users/$(incoming().collectorId)).data.role == 'collector'
         && get(/databases/$(database)/documents/users/$(incoming().collectorId)).data.active == true
         && changedOnly(['collectorId', 'collectorName', 'collectorPhone', 'status', 'acceptedByCollector', 'assignedAt', 'updatedAt']);
+      allow update: if isUser()
+        && existing().userId == uid()
+        && existing().status in ['REQUESTED', 'ASSIGNED']
+        && incoming().status == 'CANCELLED'
+        && changedOnly(['status', 'updatedAt']);
       allow update: if isCollector()
         && existing().collectorId == uid()
         && (

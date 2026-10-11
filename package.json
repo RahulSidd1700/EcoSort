@@ -9,7 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint .",
-    "emulators": "firebase emulators:start",
+    "emulators": "firebase emulators:start --import=./emulator-data --export-on-exit=./emulator-data",
     "seed:emulator": "node scripts/seed.js --config --demo --emulator",
     "seed:clear-demo": "node scripts/seed.js --clear-demo --emulator",
     "seed:config": "node scripts/seed.js --config",

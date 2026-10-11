@@ -154,3 +154,5 @@ export const DEFAULT_IMPACT = {
 };
 
 export const LOW_CONFIDENCE = 0.6;
+export const MAX_IMAGE_MB = 5;
+export const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];

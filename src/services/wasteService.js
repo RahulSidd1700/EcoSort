@@ -10,11 +10,13 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
-import { listen } from './firestoreHelpers';
+import { listen, callFunction } from './firestoreHelpers';
 
 const col = collection(db, 'wasteItems');
 
-/** Saves a manual classification to the user's waste history. */
+export const classifyImage = (imagePath) => callFunction('classifyWaste', { imagePath });
+
+/** Saves an AI or manual classification to the user's waste history. */
 export async function saveWasteRecord(uid, data) {
   const ref = doc(col);
   await setDoc(ref, {
@@ -30,6 +32,8 @@ export async function saveWasteRecord(uid, data) {
     recyclable: Boolean(data.recyclable),
     estimatedValueMin: data.estimatedValueRange?.min ?? null,
     estimatedValueMax: data.estimatedValueRange?.max ?? null,
+    imageUrl: data.imageUrl || null,
+    imagePath: data.imagePath || null,
     source: data.source,
     createdAt: serverTimestamp(),
   });
