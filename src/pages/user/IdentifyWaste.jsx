@@ -12,13 +12,12 @@ import DisposalRecommendation from '../../components/DisposalRecommendation';
 import { useAuth } from '../../hooks/useAuth';
 import { useRealtime } from '../../hooks/useRealtime';
 import { useCategories } from '../../hooks/useCategories';
-import { uploadImage } from '../../services/storageService';
 import { classifyImage, saveWasteRecord, subscribeUserWaste, updateWasteCategory } from '../../services/wasteService';
 import { CATEGORIES, CATEGORY_MAP, LOW_CONFIDENCE, UNITS } from '../../utils/constants';
 import { friendlyError } from '../../utils/errors';
 import { sortByDateDesc, timeAgo } from '../../utils/format';
 
-// phase: idle -> uploading -> analyzing -> result (or -> manual when AI fails as fallback)
+// phase: idle -> analyzing -> result (or -> manual when AI fails as fallback)
 export default function IdentifyWaste() {
   const { profile } = useAuth();
   const { categories, map: categoryMap } = useCategories();
@@ -26,7 +25,6 @@ export default function IdentifyWaste() {
   const [phase, setPhase] = useState('idle');
   const [error, setError] = useState('');
   const [aiFailed, setAiFailed] = useState(false);
-  const [uploaded, setUploaded] = useState(null); // { url, path }
   const [result, setResult] = useState(null);
   const [wasteId, setWasteId] = useState('');
   const [manual, setManual] = useState({ category: '', itemName: '', quantity: 1, unit: 'item' });
@@ -41,7 +39,6 @@ export default function IdentifyWaste() {
     setPhase('idle');
     setError('');
     setAiFailed(false);
-    setUploaded(null);
     setResult(null);
     setWasteId('');
     setManual({ category: '', itemName: '', quantity: 1, unit: 'item' });
@@ -52,52 +49,70 @@ export default function IdentifyWaste() {
       setError('Please upload or take a photo first.');
       return;
     }
-    setError('');
-    setAiFailed(false);
-
-    let image = uploaded;
-    if (!image) {
-      setPhase('uploading');
-      try {
-        image = await uploadImage('waste-images', profile.uid, file);
-        setUploaded(image);
-      } catch (err) {
-        setPhase('idle');
-        setError(
-          err.message?.startsWith('Unsupported') || err.message?.startsWith('Image is too large')
-            ? err.message
-            : friendlyError(err, 'Unable to upload image. Please try again.'),
-        );
-        return;
-      }
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setError('Please choose a JPG, PNG, or WEBP image.');
+      return;
     }
-
-    setPhase('analyzing');
-    let aiResult;
-    try {
-      aiResult = await classifyImage(image.path);
-    } catch (err) {
-      console.error(err);
-      setAiFailed(true);
-      setPhase('manual');
+    if (file.size > 8 * 1024 * 1024) {
+      setError('Please choose an image smaller than 8 MB.');
       return;
     }
 
+    setError('');
+    setAiFailed(false);
+    setPhase('analyzing');
+
     try {
-      const id = await saveWasteRecord(profile.uid, {
-        ...aiResult,
-        imageUrl: image.url,
-        imagePath: image.path,
-        quantity: 1,
-        unit: 'item',
-        source: 'ai',
+      const imageDataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('Could not read the selected image.'));
+        reader.readAsDataURL(file);
       });
-      setWasteId(id);
+
+      const data = await classifyImage(imageDataUrl, file.type);
+      const categoryIds = {
+        Recyclable: 'recyclable',
+        Organic: 'organic',
+        'E-Waste': 'ewaste',
+        Hazardous: 'hazardous',
+        'Non-Recyclable': 'non_recyclable',
+      };
+      const category = categoryIds[data.category];
+      if (!category) throw new Error('The AI returned a category that EcoSort does not support.');
+
+      const cat = categoryMap[category] || CATEGORY_MAP[category];
+      const aiResult = {
+        itemName: data.item || 'Waste item',
+        category,
+        confidence: null,
+        description: data.description || cat?.description || '',
+        recommendedAction: data.disposal_advice || cat?.action || '',
+        recyclable: ['recyclable', 'ewaste'].includes(category),
+        estimatedValueRange: null,
+        source: 'ai',
+      };
+
+      try {
+        const id = await saveWasteRecord(profile.uid, {
+          ...aiResult,
+          quantity: 1,
+          unit: 'item',
+          source: 'ai',
+        });
+        setWasteId(id);
+      } catch (err) {
+        console.warn('Record could not be saved to history:', err);
+      }
+
+      setResult(aiResult);
+      setPhase('result');
     } catch (err) {
-      setError(friendlyError(err, 'Result shown below, but it could not be saved to your history.'));
+      console.error(err);
+      setError(err.message || 'Could not classify the image. Make sure the AI server is running.');
+      setAiFailed(true);
+      setPhase('manual');
     }
-    setResult(aiResult);
-    setPhase('result');
   };
 
   const saveManual = async (e) => {
@@ -108,15 +123,6 @@ export default function IdentifyWaste() {
     setSaving(true);
     setError('');
     try {
-      let image = uploaded;
-      if (file && !image) {
-        try {
-          image = await uploadImage('waste-images', profile.uid, file);
-          setUploaded(image);
-        } catch {
-          // If upload fails in manual fallback, still allow record creation
-        }
-      }
       const cat = categoryMap[manual.category];
       const manualResult = {
         itemName: manual.itemName.trim(),
@@ -129,8 +135,6 @@ export default function IdentifyWaste() {
       };
       const id = await saveWasteRecord(profile.uid, {
         ...manualResult,
-        imageUrl: image?.url,
-        imagePath: image?.path,
         quantity: manual.quantity,
         unit: manual.unit,
         source: 'manual',
@@ -144,6 +148,7 @@ export default function IdentifyWaste() {
       setSaving(false);
     }
   };
+
 
   const correctCategory = async (category) => {
     if (!category || !wasteId) return;
@@ -167,7 +172,7 @@ export default function IdentifyWaste() {
     }
   };
 
-  const busy = phase === 'uploading' || phase === 'analyzing';
+  const busy = phase === 'analyzing';
   const lowConfidence = result && result.confidence !== null && result.confidence < LOW_CONFIDENCE && !result.corrected;
 
   return (
@@ -185,7 +190,6 @@ export default function IdentifyWaste() {
               file={file}
               onChange={(f) => {
                 setFile(f);
-                setUploaded(null);
                 if (phase === 'result' || phase === 'manual') reset();
                 if (f) setError('');
               }}
@@ -199,9 +203,7 @@ export default function IdentifyWaste() {
               <div className="mt-4 flex items-center gap-3 rounded-xl bg-brand-50 p-4 text-brand-800">
                 <LoadingSpinner />
                 <div>
-                  <p className="font-medium">
-                    {phase === 'uploading' ? 'Uploading image...' : 'Analysing your waste with AI...'}
-                  </p>
+                  <p className="font-medium">Analysing your waste with AI...</p>
                   <p className="text-xs text-brand-700">This usually takes 2-4 seconds.</p>
                 </div>
               </div>
@@ -331,7 +333,7 @@ export default function IdentifyWaste() {
                 </div>
               )}
 
-              <DisposalRecommendation result={result} wasteId={wasteId} imageUrl={uploaded?.url} />
+              <DisposalRecommendation result={result} wasteId={wasteId} />
             </Card>
           )}
         </div>

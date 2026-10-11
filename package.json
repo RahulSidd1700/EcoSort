@@ -9,13 +9,14 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint .",
-    "emulators": "firebase emulators:start --import=./emulator-data --export-on-exit=./emulator-data",
+    "emulators": "firebase emulators:start",
     "seed:emulator": "node scripts/seed.js --config --demo --emulator",
     "seed:clear-demo": "node scripts/seed.js --clear-demo --emulator",
     "seed:config": "node scripts/seed.js --config",
     "set-role": "node scripts/setRole.js",
     "test:functions": "npm --prefix functions test",
-    "test:e2e": "node scripts/e2e-emulator-test.js"
+    "test:e2e": "node scripts/e2e-emulator-test.js",
+    "ai-server": "npm --prefix ai-server run dev"
   },
   "dependencies": {
     "firebase": "^12.19.0",
