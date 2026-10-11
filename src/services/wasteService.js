@@ -42,8 +42,6 @@ export async function saveWasteRecord(uid, data) {
     recyclable: Boolean(data.recyclable),
     estimatedValueMin: data.estimatedValueRange?.min ?? null,
     estimatedValueMax: data.estimatedValueRange?.max ?? null,
-    imageUrl: data.imageUrl || null,
-    imagePath: data.imagePath || null,
     source: data.source,
     createdAt: serverTimestamp(),
   });

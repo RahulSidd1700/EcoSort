@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth, homePathForRole } from '../../hooks/useAuth';
 import { PageLoader } from '../ui/LoadingSpinner';
@@ -11,15 +12,26 @@ import { logout } from '../../services/authService';
 export default function ProtectedRoute({ roles }) {
   const { user, profile, role, loading } = useAuth();
   const location = useLocation();
+  const [timedOut, setTimedOut] = useState(false);
 
-  if (loading) return <PageLoader label="Checking your account..." />;
+  useEffect(() => {
+    if (user && !profile && !loading) {
+      const t = setTimeout(() => setTimedOut(true), 3500);
+      return () => clearTimeout(t);
+    }
+    setTimedOut(false);
+  }, [user, profile, loading]);
+
+  if (loading || (user && !profile && !timedOut)) {
+    return <PageLoader label="Loading your EcoSort dashboard..." />;
+  }
   if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   if (!profile) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-3 p-6 text-center">
         <h1 className="text-xl font-semibold">We couldn't load your EcoSort profile.</h1>
         <p className="text-sm text-slate-500">
-          If you just registered, wait a few seconds and refresh. Otherwise please log in again.
+          If you just registered, wait a moment and refresh. Otherwise please log in again.
         </p>
         <div className="flex gap-2">
           <Button onClick={() => window.location.reload()}>Refresh</Button>
