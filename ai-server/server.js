@@ -8,7 +8,19 @@ const port = Number(process.env.PORT || 8787);
 const apiKey = process.env.GROQ_API_KEY;
 const groq = apiKey ? new Groq({ apiKey }) : null;
 
-app.use(cors({ origin: true }));
+const ALLOWED_ORIGINS = [
+  'https://miniproject-b9f8c.web.app',
+  'https://miniproject-b9f8c.firebaseapp.com',
+  'http://localhost:5173',
+  'http://localhost:4173',
+];
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (e.g. curl, Render health checks)
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+    callback(new Error(`CORS: origin ${origin} not allowed`));
+  },
+}));
 app.get('/', (_req, res) => res.json({ status: 'EcoSort AI server running', ok: true, configured: Boolean(groq) }));
 app.get('/api/health', (_req, res) => res.json({ ok: true, configured: Boolean(groq) }));
 
